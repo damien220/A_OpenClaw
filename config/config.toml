@@ -1,0 +1,62 @@
+# A_OpenClaw - Configuration
+
+[app]
+name = "a_openclaw"
+type = "cli_tool"
+version = "0.1.0"
+debug = false
+log_level = "info"
+
+[llm]
+provider = "anthropic"              # "anthropic", "openai", "ollama", or "llamacpp"
+model = "claude-sonnet-4-6"         # For ollama: e.g. "llama3.2", "mistral", "qwen2.5"
+base_url = ""                       # Override API endpoint (auto-set for ollama/llamacpp)
+max_context_tokens = 100000
+max_response_tokens = 4096
+
+[memory]
+directory = "memory"
+user_file = "user.md"
+memory_file = "memory.md"
+skill_file = "skill.md"
+logs_directory = "memory/logs"
+max_log_files = 100
+
+[heartbeat]
+enabled = false
+interval_seconds = 300
+
+# Example sources (uncomment and configure as needed):
+#
+# [[heartbeat.sources]]
+# name = "weather"
+# type = "api"
+# url = "https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current_weather=true"
+# jq = "current_weather"
+#
+# [[heartbeat.sources]]
+# name = "project-notes"
+# type = "file"
+# path = "~/notes"
+# pattern = "*.md"
+#
+# [[heartbeat.sources]]
+# name = "tech-news"
+# type = "rss"
+# url = "https://hnrss.org/frontpage"
+# max_entries = 5
+
+[adapter]
+type = "cli"                        # "cli", "telegram", or custom adapter name
+
+[adapter.config]
+# CLI adapter settings:
+prompt = "> "
+
+# Telegram adapter settings (uncomment when using type = "telegram"):
+# bot_token = ""                    # From @BotFather
+# allowlist = []                    # Telegram user IDs (empty = allow all)
+
+[logging]
+level = "info"
+format = "text"                     # "text" or "json"

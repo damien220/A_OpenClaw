@@ -1,0 +1,40 @@
+services:
+  a_openclaw:
+    build: .
+    container_name: a_openclaw
+    stdin_open: true      # Required for interactive CLI mode
+    tty: true             # Required for interactive CLI mode
+    env_file:
+      - .env
+    volumes:
+      # Persist memory and logs across container restarts
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      # Mount config so changes don't require rebuild
+      - ./config:/app/config:ro
+      # Mount custom skills directory — drop .py files here to add skills
+      - ./custom_skills:/app/custom_skills
+    # Uncomment if using Ollama running on the host machine
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+
+  # Optional: local Ollama instance for offline LLM
+  # Uncomment this service to run Ollama alongside A_OpenClaw
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: a_openclaw_ollama
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   # Uncomment for GPU support (NVIDIA):
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           count: all
+  #   #           capabilities: [gpu]
+
+# volumes:
+#   ollama_data:

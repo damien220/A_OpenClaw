@@ -1,0 +1,4 @@
+anthropic>=0.40.0
+openai>=1.50.0
+tomli>=2.0;python_version<"3.11"
+./logger_pkg-0.1.0-py3-none-any.whl
