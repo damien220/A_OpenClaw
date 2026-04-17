@@ -9,7 +9,7 @@ A lightweight, Python-based personal AI assistant inspired by [OpenClaw](https:/
 - **Heartbeat engine** — Scheduled data gathering from APIs, files, and RSS feeds, processed by the LLM
 - **Channel adapters** — CLI (default) and Telegram, with a factory pattern for adding more
 - **Skills system** — Auto-discovering Python modules the LLM can invoke (web search, notes, reminders)
-- **Structured logging** — Via [Logger_Package](https://github.com/your-username/Logger_Package) with JSON output, file rotation, PII scrubbing
+- **Structured logging** — Via [Logger_Package](https://github.com/damien220/Logger_Manager) with JSON output, file rotation, PII scrubbing
 
 ## Project Structure
 
@@ -61,7 +61,7 @@ A_OpenClaw/
 ### Step 1: Set up environment
 
 ```bash
-git clone https://github.com/your-username/A_OpenClaw.git
+git clone https://github.com/damien220/A_OpenClaw
 cd A_OpenClaw
 
 cp .env.example .env
@@ -127,7 +127,7 @@ docker compose down                            # Stop everything
 ### 1. Clone and set up
 
 ```bash
-git clone https://github.com/your-username/A_OpenClaw.git
+git clone https://github.com/damien220/A_OpenClaw
 cd A_OpenClaw
 
 python -m venv .venv
@@ -237,11 +237,11 @@ Skills are Python modules in `skills/` that the LLM can invoke. They are auto-di
 
 ### Built-in skills
 
-| Skill | Description |
-|---|---|
-| `web_search` | Search the web via DuckDuckGo (no API key) |
-| `note` | Save and list tagged notes in the knowledge base |
-| `reminder` | Set, check, and list reminders with due dates |
+| Skill        | Description                                      |
+| ------------ | ------------------------------------------------ |
+| `web_search` | Search the web via DuckDuckGo (no API key)       |
+| `note`       | Save and list tagged notes in the knowledge base |
+| `reminder`   | Set, check, and list reminders with due dates    |
 
 ### How skills work
 
@@ -319,6 +319,7 @@ docker compose restart a_openclaw
 ```
 
 **Rules:**
+
 - Files starting with `_` are ignored (use `_example_skill.py` as a template).
 - Each file must import `BaseSkill` from `skills.base` and define at least one subclass.
 - If the skill needs extra pip packages, install them in the running container: `docker compose exec a_openclaw pip install <package>`, then restart. For permanent dependencies, add them to `requirements.txt` and rebuild.
@@ -327,14 +328,15 @@ docker compose restart a_openclaw
 
 All memory is stored as markdown files, human-readable and git-versionable:
 
-| File | Purpose |
-|---|---|
-| `memory/user.md` | User profile, preferences, communication style |
-| `memory/memory.md` | Running knowledge base — facts, decisions, notes |
-| `memory/skill.md` | Auto-generated skill documentation (don't edit manually) |
-| `memory/logs/` | Daily timestamped interaction logs |
+| File               | Purpose                                                  |
+| ------------------ | -------------------------------------------------------- |
+| `memory/user.md`   | User profile, preferences, communication style           |
+| `memory/memory.md` | Running knowledge base — facts, decisions, notes         |
+| `memory/skill.md`  | Auto-generated skill documentation (don't edit manually) |
+| `memory/logs/`     | Daily timestamped interaction logs                       |
 
 Memory is automatically:
+
 - **Injected** into LLM context on every message
 - **Truncated** if it exceeds the context window limit
 - **Compacted** when `memory.md` grows too large (oldest entries trimmed)
@@ -361,11 +363,11 @@ python -m pytest tests/ -v
 
 ## Environment Variables
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | For Anthropic provider | Anthropic API key |
-| `OPENAI_API_KEY` | For OpenAI provider | OpenAI API key |
-| `TELEGRAM_BOT_TOKEN` | For Telegram adapter | Can also be set in config.toml |
+| Variable             | Required               | Purpose                        |
+| -------------------- | ---------------------- | ------------------------------ |
+| `ANTHROPIC_API_KEY`  | For Anthropic provider | Anthropic API key              |
+| `OPENAI_API_KEY`     | For OpenAI provider    | OpenAI API key                 |
+| `TELEGRAM_BOT_TOKEN` | For Telegram adapter   | Can also be set in config.toml |
 
 Local providers (Ollama, llama.cpp) require no API keys.
 
@@ -398,3 +400,17 @@ User Message
 ## License
 
 MIT
+
+## Support This Project
+
+If you find this useful, consider supporting its development. Your contributions help keep the project maintained, fund new features, and cover infrastructure costs.
+
+### Donate
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-Support-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ashrafalnas)
+[![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/c/unrealpatr/)
+
+| Platform            | Type                         | Link                                                                 |
+| ------------------- | ---------------------------- | -------------------------------------------------------------------- |
+| **Buy Me a Coffee** | One-time or monthly support  | [buymeacoffee.com/ashrafalnas](https://buymeacoffee.com/ashrafalnas) |
+| **Patreon**         | Recurring monthly membership | [patreon.com/c/unrealpatr/](https://www.patreon.com/c/unrealpatr/)   |
