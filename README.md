@@ -1,6 +1,6 @@
 # A_OpenClaw
 
-![A_OpenClaw](media/logo_A_OpenClaw.jpg)
+![A_OpenClaw](media/logo-portfoilio.png)
 
 A lightweight, Python-based personal AI assistant inspired by [OpenClaw](https://github.com/openclaw/openclaw). It runs locally, connects to messaging platforms, gathers data on a schedule, and invokes custom skills — all orchestrated through an LLM.
 
