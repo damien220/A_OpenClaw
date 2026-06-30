@@ -45,8 +45,10 @@ class BaseAdapter(ABC):
         """Check if a sender is allowed based on config allowlist.
 
         If no allowlist is configured, all senders are allowed.
+        Both sender and allowlist entries are coerced to str so that integer
+        Telegram chat IDs match string values from TOML config.
         """
         allowlist = self.config.get("allowlist", [])
         if not allowlist:
             return True
-        return sender in allowlist
+        return str(sender) in [str(item) for item in allowlist]

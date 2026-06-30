@@ -149,5 +149,76 @@ class TestHeartbeatRunner(unittest.TestCase):
         self.assertTrue(runner._stop_event.is_set())
 
 
+class TestWeatherSource(unittest.TestCase):
+
+    def _make_geo(self, name="Paris", lat=48.85, lon=2.35, country="France", admin1="Ile-de-France"):
+        return {"results": [{"name": name, "latitude": lat, "longitude": lon,
+                              "country": country, "admin1": admin1}]}
+
+    def _make_wx(self, temp=18.0, feels=17.0, humidity=60,
+                 wind_speed=12.0, wind_dir=180, code=1):
+        return {"current": {
+            "temperature_2m": temp, "apparent_temperature": feels,
+            "relative_humidity_2m": humidity, "wind_speed_10m": wind_speed,
+            "wind_direction_10m": wind_dir, "weather_code": code,
+        }}
+
+    def test_no_location_returns_empty(self):
+        from heartbeat.sources.weather_source import WeatherSource
+        src = WeatherSource("weather", {})
+        self.assertEqual(src.gather(), "")
+
+    def test_location_not_found(self):
+        from heartbeat.sources.weather_source import WeatherSource
+        src = WeatherSource("weather", {"location": "Xyzzy"})
+        with patch("heartbeat.sources.weather_source._fetch_json", return_value={"results": []}):
+            result = src.gather()
+        self.assertIn("not found", result)
+
+    def test_geocoding_error(self):
+        from heartbeat.sources.weather_source import WeatherSource
+        from urllib.error import URLError
+        src = WeatherSource("weather", {"location": "Paris"})
+        with patch("heartbeat.sources.weather_source._fetch_json", side_effect=URLError("timeout")):
+            result = src.gather()
+        self.assertIn("geocoding error", result)
+
+    def test_weather_api_error(self):
+        from heartbeat.sources.weather_source import WeatherSource
+        from urllib.error import URLError
+        src = WeatherSource("weather", {"location": "Paris"})
+        geo = self._make_geo()
+        with patch("heartbeat.sources.weather_source._fetch_json", side_effect=[geo, URLError("503")]):
+            result = src.gather()
+        self.assertIn("API error", result)
+
+    def test_successful_gather_metric(self):
+        from heartbeat.sources.weather_source import WeatherSource
+        src = WeatherSource("weather", {"location": "Paris", "units": "metric"})
+        geo = self._make_geo()
+        wx = self._make_wx(temp=18.0, code=1)
+        with patch("heartbeat.sources.weather_source._fetch_json", side_effect=[geo, wx]):
+            result = src.gather()
+        self.assertIn("Paris", result)
+        self.assertIn("18.0°C", result)
+        self.assertIn("Mainly clear", result)
+
+    def test_successful_gather_imperial(self):
+        from heartbeat.sources.weather_source import WeatherSource
+        src = WeatherSource("weather", {"location": "New York", "units": "imperial"})
+        geo = self._make_geo(name="New York", country="United States", admin1="New York")
+        wx = self._make_wx(temp=72.0, code=0)
+        with patch("heartbeat.sources.weather_source._fetch_json", side_effect=[geo, wx]):
+            result = src.gather()
+        self.assertIn("72.0°F", result)
+        self.assertIn("mph", result)
+
+    def test_registered_as_source_type(self):
+        from heartbeat.source_registry import create_source
+        src = create_source({"name": "w", "type": "weather", "location": "London"})
+        from heartbeat.sources.weather_source import WeatherSource
+        self.assertIsInstance(src, WeatherSource)
+
+
 if __name__ == "__main__":
     unittest.main()

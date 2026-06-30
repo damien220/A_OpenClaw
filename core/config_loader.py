@@ -38,16 +38,22 @@ def _deep_merge(base: dict, override: dict) -> dict:
 def _apply_env_overrides(config: dict, prefix: str = _ENV_PREFIX) -> dict:
     """Override config values with environment variables.
 
-    A_OPENCLAW_LLM_MODEL=gpt-4  ->  config["llm"]["model"] = "gpt-4"
+    A_OPENCLAW_LLM_MODEL=gpt-4       ->  config["llm"]["model"] = "gpt-4"
+    A_OPENCLAW_LLM_BASE_URL=http://x  ->  config["llm"]["base_url"] = "http://x"
+
+    Split only on the first underscore so that keys containing underscores
+    (e.g. base_url, max_response_tokens) are preserved correctly.
     """
     for key, value in os.environ.items():
         if not key.startswith(prefix):
             continue
-        parts = key[len(prefix):].lower().split("_")
-        target = config
-        for part in parts[:-1]:
-            target = target.setdefault(part, {})
-        target[parts[-1]] = value
+        remainder = key[len(prefix):].lower()
+        parts = remainder.split("_", 1)
+        if len(parts) == 1:
+            config[parts[0]] = value
+        else:
+            section, subkey = parts
+            config.setdefault(section, {})[subkey] = value
     return config
 
 

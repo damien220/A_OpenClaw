@@ -37,17 +37,19 @@ class MemoryManager:
         self._max_context_chars = llm_cfg.get("max_context_tokens", 100000) * _CHARS_PER_TOKEN
         self._max_memory_chars = mem_cfg.get("max_memory_chars", 50000)
 
+        self._path_map = {
+            "user": self._user_path,
+            "memory": self._memory_path,
+            "skill": self._skill_path,
+        }
+        self._last_log_date: str | None = None
+
         self._logs_dir.mkdir(parents=True, exist_ok=True)
         logger.debug("MemoryManager initialized", extra={"memory_dir": str(self._memory_dir)})
 
     def read_memory(self, file_key: str) -> str:
         """Read a memory file by key ('user', 'memory', or 'skill')."""
-        path_map = {
-            "user": self._user_path,
-            "memory": self._memory_path,
-            "skill": self._skill_path,
-        }
-        path = path_map.get(file_key)
+        path = self._path_map.get(file_key)
         if path is None:
             raise ValueError(f"Unknown memory file key: {file_key}")
         if not path.exists():
@@ -56,12 +58,7 @@ class MemoryManager:
 
     def write_memory(self, file_key: str, content: str) -> None:
         """Overwrite a memory file with new content."""
-        path_map = {
-            "user": self._user_path,
-            "memory": self._memory_path,
-            "skill": self._skill_path,
-        }
-        path = path_map.get(file_key)
+        path = self._path_map.get(file_key)
         if path is None:
             raise ValueError(f"Unknown memory file key: {file_key}")
         path.write_text(content, encoding="utf-8")
@@ -147,7 +144,10 @@ class MemoryManager:
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(entry)
 
-        self._rotate_logs()
+        if date_str != self._last_log_date:
+            self._last_log_date = date_str
+            self._rotate_logs()
+
         return log_file
 
     def _rotate_logs(self) -> None:

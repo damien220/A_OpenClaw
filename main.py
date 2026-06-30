@@ -69,7 +69,7 @@ def main():
     logger.info("Skills loaded", extra={"skills": skill_registry.list_skills()})
 
     # Skill execution context — shared with all skill invocations
-    skill_context = {"memory": memory, "config": config}
+    skill_context = {"memory": memory, "config": config, "llm": llm}
 
     # Start heartbeat if enabled
     heartbeat = HeartbeatRunner(config)

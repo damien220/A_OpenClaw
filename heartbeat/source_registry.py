@@ -4,11 +4,13 @@ from heartbeat.sources.base import BaseSource
 from heartbeat.sources.api_source import APISource
 from heartbeat.sources.file_source import FileSource
 from heartbeat.sources.rss_source import RSSSource
+from heartbeat.sources.weather_source import WeatherSource
 
 _SOURCE_TYPES: dict[str, type[BaseSource]] = {
     "api": APISource,
     "file": FileSource,
     "rss": RSSSource,
+    "weather": WeatherSource,
 }
 
 
