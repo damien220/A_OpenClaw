@@ -30,9 +30,9 @@ interval_seconds = 300
 #
 # [[heartbeat.sources]]
 # name = "weather"
-# type = "api"
-# url = "https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current_weather=true"
-# jq = "current_weather"
+# type = "weather"
+# location = "Paris"
+# units = "metric"                  # "metric" or "imperial"
 #
 # [[heartbeat.sources]]
 # name = "project-notes"
@@ -45,6 +45,13 @@ interval_seconds = 300
 # type = "rss"
 # url = "https://hnrss.org/frontpage"
 # max_entries = 5
+
+[files]
+base_dir = "files"                  # Sandbox root for the 'file' skill (relative to project root)
+
+[shell]
+allowlist = []                      # Program names the 'shell_exec' skill may run, e.g. ["ls", "pwd", "cat"]. Empty = nothing runs.
+timeout_seconds = 30                # Docker image only ships coreutils — see Dockerfile to add more (git, curl, ...)
 
 [adapter]
 type = "cli"                        # "cli", "telegram", or custom adapter name

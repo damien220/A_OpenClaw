@@ -8,9 +8,9 @@ A lightweight, Python-based personal AI assistant inspired by [OpenClaw](https:/
 
 - **Multi-provider LLM support** — Anthropic, OpenAI, Ollama (local), llama.cpp (local)
 - **File-based memory** — Markdown files for user profile, knowledge base, skills, and interaction logs
-- **Heartbeat engine** — Scheduled data gathering from APIs, files, and RSS feeds, processed by the LLM
+- **Heartbeat engine** — Scheduled data gathering from APIs, files, RSS feeds, and weather, processed by the LLM
 - **Channel adapters** — CLI (default) and Telegram, with a factory pattern for adding more
-- **Skills system** — Auto-discovering Python modules the LLM can invoke (web search, notes, reminders)
+- **Skills system** — Auto-discovering Python modules the LLM can invoke (web search, notes, reminders, weather, translate, summarize, file access, RSS digest, shell commands)
 - **Structured logging** — Via [Logger_Package](https://github.com/damien220/Logger_Manager) with JSON output, file rotation, PII scrubbing
 
 ## Project Structure
@@ -34,7 +34,8 @@ A_OpenClaw/
 │   └── sources/
 │       ├── api_source.py        # REST API data source
 │       ├── file_source.py       # Local file/directory source
-│       └── rss_source.py        # RSS/Atom feed source
+│       ├── rss_source.py        # RSS/Atom feed source
+│       └── weather_source.py    # Open-Meteo current conditions
 ├── adapters/
 │   ├── base.py                  # Abstract adapter interface
 │   ├── cli_adapter.py           # Interactive terminal adapter
@@ -44,18 +45,25 @@ A_OpenClaw/
 │   ├── base.py                  # Abstract skill interface
 │   ├── registry.py              # Auto-discover, register, invoke skills
 │   ├── skill_parser.py          # Extract + execute skill blocks from LLM output
-│   ├── web_search.py            # DuckDuckGo search (no API key needed)
+│   ├── web_search.py            # Brave Search API (falls back to DuckDuckGo)
 │   ├── note_taker.py            # Save/list tagged notes in memory
-│   └── reminder.py              # Set/check/list reminders with due dates
+│   ├── reminder.py              # Set/check/list reminders with due dates
+│   ├── weather.py               # Current conditions via Open-Meteo
+│   ├── translator.py            # Translate text via the LLM
+│   ├── summarizer.py            # Summarize text or a URL via the LLM
+│   ├── file_manager.py          # Sandboxed read/write/list/delete
+│   ├── rss_digest.py            # Fetch entries from RSS/Atom feeds
+│   └── shell_exec.py            # Run allowlisted shell commands
 ├── custom_skills/               # Drop custom skill .py files here (no rebuild needed)
 │   └── _example_skill.py        # Example template (ignored — prefixed with _)
-├── tests/                       # 88 tests across all components
+├── tests/                       # 145 tests across all components
 ├── logs/                        # Application log files (auto-rotated)
 ├── main.py                      # Entry point
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
-└── plan.md                      # Full implementation plan
+├── LICENSE
+└── CONTRIBUTING.md
 ```
 
 ## Docker Deployment
@@ -214,9 +222,9 @@ interval_seconds = 300
 
 [[heartbeat.sources]]
 name = "weather"
-type = "api"
-url = "https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current_weather=true"
-jq = "current_weather"
+type = "weather"
+location = "Paris"
+units = "metric"
 
 [[heartbeat.sources]]
 name = "tech-news"
@@ -239,11 +247,17 @@ Skills are Python modules in `skills/` that the LLM can invoke. They are auto-di
 
 ### Built-in skills
 
-| Skill        | Description                                      |
-| ------------ | ------------------------------------------------ |
-| `web_search` | Search the web via DuckDuckGo (no API key)       |
-| `note`       | Save and list tagged notes in the knowledge base |
-| `reminder`   | Set, check, and list reminders with due dates    |
+| Skill        | Description                                                             |
+| ------------ | ------------------------------------------------------------------------ |
+| `web_search` | Web search via Brave Search API; falls back to DuckDuckGo if no key set |
+| `note`       | Save and list tagged notes in the knowledge base                       |
+| `reminder`   | Set, check, and list reminders with due dates                          |
+| `weather`    | Current conditions for any city via Open-Meteo (metric or imperial)    |
+| `translate`  | Translate text to any language via the LLM                             |
+| `summarize`  | Summarize text or a URL (fetches and strips HTML)                      |
+| `file`       | Read/write/list/delete files, sandboxed to `[files] base_dir`          |
+| `rss_digest` | Fetch entries from one or more RSS/Atom feeds                          |
+| `shell_exec` | Run allowlisted commands (`[shell] allowlist`), never through a shell  |
 
 ### How skills work
 
@@ -259,20 +273,20 @@ Skills are Python modules in `skills/` that the LLM can invoke. They are auto-di
 
 ### Creating a custom skill
 
-Create a new file in `skills/`, e.g. `skills/weather.py`:
+Create a new file in `skills/`, e.g. `skills/dice.py`:
 
 ```python
 from skills.base import BaseSkill
+import random
 
-class WeatherSkill(BaseSkill):
-    name = "weather"
-    description = "Get current weather for a location."
-    parameters = {"location": "City name or coordinates."}
+class DiceSkill(BaseSkill):
+    name = "dice"
+    description = "Roll an N-sided die."
+    parameters = {"sides": "Number of sides (default: 6)."}
 
     def execute(self, params, context):
-        location = params.get("location", "")
-        # ... fetch weather data ...
-        return f"Weather in {location}: 22C, sunny"
+        sides = int(params.get("sides", 6))
+        return f"Rolled a {random.randint(1, sides)} (d{sides})"
 ```
 
 Restart the app — the skill is auto-discovered and available to the LLM.
@@ -287,31 +301,25 @@ The `custom_skills/` directory is scanned at startup alongside the built-in `ski
 2. Restart the container: `docker compose restart a_openclaw`
 3. The skill is auto-discovered, registered, and documented in `memory/skill.md`.
 
-**Example** — create `custom_skills/weather.py`:
+**Example** — create `custom_skills/dad_joke.py`:
 
 ```python
 from skills.base import BaseSkill
 import urllib.request
 import json
 
-class WeatherSkill(BaseSkill):
-    name = "weather"
-    description = "Get current weather for a city using Open-Meteo (no API key)."
-    parameters = {"city": "City name (uses geocoding to resolve coordinates)."}
+class DadJokeSkill(BaseSkill):
+    name = "dad_joke"
+    description = "Get a random dad joke (no API key needed)."
+    parameters = {}
 
     def execute(self, params, context):
-        city = params.get("city", "London")
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
-        with urllib.request.urlopen(geo_url) as resp:
+        req = urllib.request.Request(
+            "https://icanhazdadjoke.com/", headers={"Accept": "application/json"}
+        )
+        with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read())
-        if not data.get("results"):
-            return f"City '{city}' not found."
-        lat = data["results"][0]["latitude"]
-        lon = data["results"][0]["longitude"]
-        wx_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
-        with urllib.request.urlopen(wx_url) as resp:
-            wx = json.loads(resp.read())["current_weather"]
-        return f"Weather in {city}: {wx['temperature']}°C, wind {wx['windspeed']} km/h"
+        return data.get("joke", "No joke found.")
 ```
 
 Then restart:
@@ -361,15 +369,16 @@ source .venv/bin/activate
 python -m pytest tests/ -v
 ```
 
-88 tests cover: config loading/validation, memory read/write/compact/truncate, adapter factory/routing/allowlist, heartbeat sources/runner, skill registry/parser/chaining, and built-in skills.
+145 tests cover: config loading/validation, memory read/write/compact/truncate, adapter factory/routing/allowlist, heartbeat sources/runner, skill registry/parser/chaining, and built-in skills.
 
 ## Environment Variables
 
-| Variable             | Required               | Purpose                        |
-| -------------------- | ---------------------- | ------------------------------ |
-| `ANTHROPIC_API_KEY`  | For Anthropic provider | Anthropic API key              |
-| `OPENAI_API_KEY`     | For OpenAI provider    | OpenAI API key                 |
-| `TELEGRAM_BOT_TOKEN` | For Telegram adapter   | Can also be set in config.toml |
+| Variable               | Required                | Purpose                                              |
+| ---------------------- | ------------------------ | ----------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | For Anthropic provider   | Anthropic API key                                      |
+| `OPENAI_API_KEY`       | For OpenAI provider      | OpenAI API key                                         |
+| `TELEGRAM_BOT_TOKEN`   | For Telegram adapter     | Can also be set in config.toml                         |
+| `BRAVE_SEARCH_API_KEY` | Optional                 | Full results for `web_search` (free tier available)   |
 
 Local providers (Ollama, llama.cpp) require no API keys.
 
@@ -399,9 +408,13 @@ User Message
   Sources (API / File / RSS) → LLM → Memory Updates / Outbound Messages
 ```
 
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and how to add a skill, source, or adapter.
+
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ## Support This Project
 

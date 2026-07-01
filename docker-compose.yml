@@ -14,6 +14,8 @@ services:
       - ./config:/app/config:ro
       # Mount custom skills directory — drop .py files here to add skills
       - ./custom_skills:/app/custom_skills
+      # Persist files written/read by the 'file' skill ([files] base_dir)
+      - ./files:/app/files
     # Uncomment if using Ollama running on the host machine
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"

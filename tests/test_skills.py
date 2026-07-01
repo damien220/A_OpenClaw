@@ -50,6 +50,7 @@ class TestSkillRegistry(unittest.TestCase):
         self.assertIn("note", names)
         self.assertIn("reminder", names)
         self.assertIn("web_search", names)
+        self.assertIn("shell_exec", names)
 
     def test_generate_skill_md(self):
         registry = SkillRegistry()
@@ -226,6 +227,117 @@ class TestReminderSkill(unittest.TestCase):
         skill = ReminderSkill()
         result = skill.execute({"action": "set", "due": "2030-01-01 09:00"}, self.ctx)
         self.assertIn("no text", result)
+
+
+class TestWebSearchSkill(unittest.TestCase):
+
+    @staticmethod
+    def _mock_response(body: bytes):
+        resp = MagicMock()
+        resp.read.return_value = body
+        resp.__enter__.return_value = resp
+        resp.__exit__.return_value = False
+        return resp
+
+    def test_no_query(self):
+        from skills.web_search import WebSearchSkill
+        skill = WebSearchSkill()
+        result = skill.execute({}, {})
+        self.assertIn("no query provided", result)
+
+    def test_brave_search_used_when_api_key_set(self):
+        from skills.web_search import WebSearchSkill
+        from unittest.mock import patch
+        import json
+
+        brave_json = json.dumps(
+            {
+                "web": {
+                    "results": [
+                        {
+                            "title": "Example Title",
+                            "url": "https://example.com",
+                            "description": "Example description.",
+                        }
+                    ]
+                }
+            }
+        ).encode("utf-8")
+
+        with patch.dict("os.environ", {"BRAVE_SEARCH_API_KEY": "test-key"}), \
+             patch("skills.web_search.urlopen", return_value=self._mock_response(brave_json)) as mock_urlopen:
+            skill = WebSearchSkill()
+            result = skill.execute({"query": "python asyncio"}, {})
+
+        self.assertIn("Example Title", result)
+        self.assertIn("https://example.com", result)
+        self.assertIn("Example description.", result)
+        sent_request = mock_urlopen.call_args[0][0]
+        self.assertEqual(sent_request.get_header("X-subscription-token"), "test-key")
+
+    def test_brave_search_no_results(self):
+        from skills.web_search import WebSearchSkill
+        from unittest.mock import patch
+        import json
+
+        brave_json = json.dumps({"web": {"results": []}}).encode("utf-8")
+
+        with patch.dict("os.environ", {"BRAVE_SEARCH_API_KEY": "test-key"}), \
+             patch("skills.web_search.urlopen", return_value=self._mock_response(brave_json)):
+            skill = WebSearchSkill()
+            result = skill.execute({"query": "python asyncio"}, {})
+
+        self.assertIn("No results found", result)
+
+    def test_brave_search_error(self):
+        from skills.web_search import WebSearchSkill
+        from unittest.mock import patch
+        from urllib.error import URLError
+
+        with patch.dict("os.environ", {"BRAVE_SEARCH_API_KEY": "test-key"}), \
+             patch("skills.web_search.urlopen", side_effect=URLError("boom")):
+            skill = WebSearchSkill()
+            result = skill.execute({"query": "python"}, {})
+
+        self.assertIn("web_search error", result)
+
+    def test_falls_back_to_duckduckgo_without_api_key(self):
+        from skills.web_search import WebSearchSkill
+        from unittest.mock import patch
+        import json
+        import os
+
+        instant_json = json.dumps(
+            {"AbstractText": "Quick answer.", "AbstractSource": "Wikipedia"}
+        ).encode("utf-8")
+
+        env = dict(os.environ)
+        env.pop("BRAVE_SEARCH_API_KEY", None)
+        with patch.dict("os.environ", env, clear=True), \
+             patch("skills.web_search.urlopen", return_value=self._mock_response(instant_json)):
+            skill = WebSearchSkill()
+            result = skill.execute({"query": "python"}, {})
+
+        self.assertIn("Wikipedia", result)
+        self.assertIn("Quick answer.", result)
+
+    def test_no_api_key_and_no_abstract_prompts_for_key(self):
+        from skills.web_search import WebSearchSkill
+        from unittest.mock import patch
+        import json
+        import os
+
+        empty_instant = json.dumps({"AbstractText": ""}).encode("utf-8")
+
+        env = dict(os.environ)
+        env.pop("BRAVE_SEARCH_API_KEY", None)
+        with patch.dict("os.environ", env, clear=True), \
+             patch("skills.web_search.urlopen", return_value=self._mock_response(empty_instant)):
+            skill = WebSearchSkill()
+            result = skill.execute({"query": "python"}, {})
+
+        self.assertIn("No results found", result)
+        self.assertIn("BRAVE_SEARCH_API_KEY", result)
 
 
 class TestTranslatorSkill(unittest.TestCase):
@@ -420,6 +532,81 @@ class TestFileManagerSkill(unittest.TestCase):
         skill._base_dir = lambda cfg: Path(self._tmpdir)
         result = skill.execute({"action": "explode", "path": "x.txt"}, self.ctx)
         self.assertIn("unknown action", result)
+
+
+class TestShellExecSkill(unittest.TestCase):
+
+    @staticmethod
+    def _ctx(allowlist, timeout_seconds=30):
+        return {"config": {"shell": {"allowlist": allowlist, "timeout_seconds": timeout_seconds}}}
+
+    def test_no_command(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute({}, self._ctx(["echo"]))
+        self.assertIn("no command provided", result)
+
+    def test_empty_allowlist_blocks_everything(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute({"command": "echo hi"}, self._ctx([]))
+        self.assertIn("no commands are allowlisted", result)
+
+    def test_non_allowlisted_command_blocked(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute({"command": "rm -rf /"}, self._ctx(["echo"]))
+        self.assertIn("not in the allowlist", result)
+
+    def test_allowlisted_command_runs(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute({"command": "echo hello world"}, self._ctx(["echo"]))
+        self.assertIn("hello world", result)
+        self.assertIn("Exit code: 0", result)
+
+    def test_shell_metacharacters_not_interpreted(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        # `&&` and the trailing command are passed to `echo` as literal
+        # argv entries — never handed to a shell, so nothing else runs.
+        result = skill.execute({"command": "echo safe && rm -rf /"}, self._ctx(["echo"]))
+        self.assertIn("safe && rm -rf /", result)
+
+    def test_cwd_escape_blocked(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute(
+            {"command": "echo hi", "cwd": "../../../../etc"}, self._ctx(["echo"])
+        )
+        self.assertIn("outside the project directory", result)
+
+    def test_command_timeout(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute({"command": "sleep 5"}, self._ctx(["sleep"], timeout_seconds=0.2))
+        self.assertIn("timed out", result)
+
+    def test_nonexistent_program_errors(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute(
+            {"command": "definitely_not_a_real_binary_xyz --help"},
+            self._ctx(["definitely_not_a_real_binary_xyz"]),
+        )
+        self.assertIn("failed to run command", result)
+
+    def test_unparseable_command(self):
+        from skills.shell_exec import ShellExecSkill
+        skill = ShellExecSkill()
+        result = skill.execute({"command": 'echo "unterminated'}, self._ctx(["echo"]))
+        self.assertIn("could not parse command", result)
+
+    def test_auto_discovered(self):
+        from skills.registry import SkillRegistry
+        registry = SkillRegistry()
+        registry.auto_discover()
+        self.assertIn("shell_exec", registry.list_skills())
 
 
 class TestRSSDigestSkill(unittest.TestCase):

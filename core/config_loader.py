@@ -137,6 +137,16 @@ def validate_config(config: dict) -> list[str]:
     if log_format not in _VALID_LOG_FORMATS:
         errors.append(f"[logging] Unknown format: {log_format!r}. Valid: {', '.join(_VALID_LOG_FORMATS)}")
 
+    # Shell section (shell_exec skill)
+    shell = config.get("shell", {})
+    allowlist = shell.get("allowlist", [])
+    if not isinstance(allowlist, list) or not all(isinstance(a, str) for a in allowlist):
+        errors.append("[shell] allowlist must be a list of command-name strings")
+
+    timeout = shell.get("timeout_seconds", 30)
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout < 1:
+        errors.append(f"[shell] timeout_seconds must be a positive number, got: {timeout}")
+
     return errors
 
 

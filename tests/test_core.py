@@ -66,6 +66,18 @@ class TestConfigValidation(unittest.TestCase):
         errors = validate_config(config)
         self.assertTrue(any("type" in e for e in errors))
 
+    def test_invalid_shell_allowlist(self):
+        config = load_config()
+        config["shell"]["allowlist"] = "ls"
+        errors = validate_config(config)
+        self.assertTrue(any("allowlist" in e for e in errors))
+
+    def test_invalid_shell_timeout(self):
+        config = load_config()
+        config["shell"]["timeout_seconds"] = 0
+        errors = validate_config(config)
+        self.assertTrue(any("timeout_seconds" in e for e in errors))
+
 
 class TestMemoryManager(unittest.TestCase):
 

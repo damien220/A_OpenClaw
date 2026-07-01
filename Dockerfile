@@ -9,6 +9,12 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# This base image only ships coreutils (ls, cat, pwd, df, uname, ...).
+# If you allowlist other programs for the 'shell_exec' skill (e.g. git, curl),
+# install them here:
+# RUN apt-get update && apt-get install -y --no-install-recommends git curl \
+#     && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (layer caching)
 COPY requirements.txt logger_pkg-0.1.0-py3-none-any.whl ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -25,7 +31,7 @@ COPY config/ config/
 COPY memory/ memory/
 
 # Create directories for runtime data
-RUN mkdir -p logs memory/logs custom_skills
+RUN mkdir -p logs memory/logs custom_skills files
 
 # Default command — interactive CLI mode
 CMD ["python", "main.py"]
